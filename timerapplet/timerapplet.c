@@ -34,6 +34,8 @@
 #include <mate-panel-applet.h>
 #include <mate-panel-applet-gsettings.h>
 
+#include <pthread.h>
+
 /* Applet constants */
 #define APPLET_ICON  "mate-panel-clock"
 #define STEP         100
@@ -44,6 +46,7 @@
 #define DURATION_KEY            "duration"
 #define SHOW_NOTIFICATION_KEY   "show-notification"
 #define SHOW_DIALOG_KEY         "show-dialog"
+#define COMMAND_KEY             "command"
 
 typedef struct
 {
@@ -91,6 +94,8 @@ static char *ui = "<menuitem name='Item 1' action='Start' />"
                   "<menuitem name='Item 5' action='Preferences' />"
                   "<menuitem name='Item 6' action='About' />";
 
+pthread_t thrcmd;
+
 static void
 timer_applet_destroy (MatePanelApplet *applet_widget, TimerApplet *applet)
 {
@@ -105,6 +110,22 @@ timer_applet_destroy (MatePanelApplet *applet_widget, TimerApplet *applet)
     g_object_unref (applet->settings);
 
     notify_uninit ();
+}
+
+
+/* thread for run external command after timer ends*/
+
+void *do_thread_command(void *arg)
+{
+	gchar *command;
+	GSettings *settings = (GSettings*) arg;
+	command = g_settings_get_string (arg, COMMAND_KEY);
+
+	char *cmdtxt = (char*) command;
+	
+	system(cmdtxt);
+	
+	g_free(command);
 }
 
 /* timer management */
@@ -149,6 +170,8 @@ timer_callback (TimerApplet *applet)
             gtk_label_set_text (applet->label, label);
             gtk_widget_set_tooltip_text (GTK_WIDGET (applet->label), name);
             gtk_widget_hide (GTK_WIDGET (applet->pause_image));
+            
+            pthread_create(&thrcmd, NULL, do_thread_command, (void*) applet->settings);
 
             if (g_settings_get_boolean (applet->settings, SHOW_NOTIFICATION_KEY))
             {
@@ -369,6 +392,20 @@ timer_preferences_callback (GtkAction *action, TimerApplet *applet)
     widget = gtk_check_button_new_with_label (_("Show dialog"));
     gtk_grid_attach (grid, widget, 2, 5, 1, 1);
     g_settings_bind (applet->settings, SHOW_DIALOG_KEY, widget, "active", G_SETTINGS_BIND_DEFAULT);
+    
+    widget = gtk_label_new (_("Command:"));
+    gtk_label_set_xalign (GTK_LABEL (widget), 1.0);
+    gtk_label_set_yalign (GTK_LABEL (widget), 0.5);
+    gtk_grid_attach (grid, widget, 1, 6, 1, 1);
+
+    widget = gtk_entry_new ();
+    gtk_grid_attach (grid, widget, 2, 6, 1, 1);
+    g_settings_bind (applet->settings, COMMAND_KEY, widget, "text", G_SETTINGS_BIND_DEFAULT);
+    
+    widget = gtk_label_new (_(" "));
+    gtk_label_set_xalign (GTK_LABEL (widget), 1.0);
+    gtk_label_set_yalign (GTK_LABEL (widget), 0.5);
+    gtk_grid_attach (grid, widget, 1, 7, 1, 1);
 
     gtk_box_pack_start (GTK_BOX (gtk_dialog_get_content_area (dialog)), GTK_WIDGET (grid), TRUE, TRUE, 0);
 

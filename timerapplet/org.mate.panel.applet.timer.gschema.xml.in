@@ -16,5 +16,9 @@
       <default>false</default>
       <summary>Show dialog window when timer finish</summary>
     </key>
+    <key name="command" type="s">
+      <default>''</default>
+      <summary>External command</summary>
+    </key>
   </schema>
 </schemalist>
